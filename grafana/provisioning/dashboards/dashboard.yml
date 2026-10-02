@@ -1,0 +1,12 @@
+
+apiVersion: 1
+
+providers:
+  - name: Parcial Comunicaciones
+    orgId: 1
+    folder: Parcial Comunicaciones
+    type: file
+    disableDeletion: false
+    editable: false
+    options:
+      path: /var/lib/grafana/dashboards
