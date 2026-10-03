@@ -1,4 +1,3 @@
-
 # Parcial 2 - Comunicaciones
 
 Proyecto de despliegue multi-contenedor para Ingeniería Mecatrónica.
@@ -14,15 +13,16 @@ Proyecto de despliegue multi-contenedor para Ingeniería Mecatrónica.
 ## Requisitos
 
 - Git.
-- Docker Desktop.
+- Docker Desktop (abierto y con el motor funcionando).
 - Docker Compose.
+- Puerto 80 libre.
 
 ## Despliegue
 
 Clonar el repositorio:
 
 ```bash
-git clone URL_DEL_REPOSITORIO
+git clone https://github.com/camilopenagos1/parcial-redes-comunicaciones.git
 cd parcial-redes-comunicaciones
 ```
 
@@ -32,23 +32,43 @@ Preparar las variables:
 cp .env.example .env
 ```
 
+En PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
 Iniciar:
 
 ```bash
 docker compose up -d
 ```
 
-## Direcciones
+La primera vez tarda unos minutos porque descarga imágenes,
+construye Jupyter e instala Joomla automáticamente.
+
+## Direcciones y credenciales
 
 - Joomla: http://localhost/
+- Joomla administrador: http://localhost/administrator
+  (usuario `duvan` / contraseña `Parcial_Comunicaciones02`)
 - Jupyter: http://localhost/jupyter/
+  (token `parcial2026`)
 - Grafana: http://localhost/grafana/
+  (usuario `duvan` / contraseña `Parcial_Comunicaciones02`)
 
 ## Verificación
 
 ```bash
 docker compose ps
 docker compose logs --tail=100
+```
+
+Para generar tráfico y ver datos en Grafana y Jupyter, abrir
+http://localhost/ varias veces o ejecutar en PowerShell:
+
+```powershell
+1..30 | ForEach-Object { curl.exe -s -o NUL http://localhost/ }
 ```
 
 ## Detener
