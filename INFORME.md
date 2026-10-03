@@ -1,6 +1,6 @@
 # Informe técnico – Parcial 2 de Comunicaciones
 
-**Estudiante:** Duvan – Ingeniería Mecatrónica
+**Estudiante:** Duvan Penagos 7004325, Yuber Garnica 7004344 – Ingeniería Mecatrónica
 **Repositorio:** https://github.com/camilopenagos1/parcial-redes-comunicaciones
 **Fecha de implementación:** 2 de octubre de 2026
 
