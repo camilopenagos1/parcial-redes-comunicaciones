@@ -70,7 +70,6 @@ services:
       context: ./jupyter
     container_name: parcial_jupyter
     environment:
-      JUPYTER_TOKEN: ${JUPYTER_TOKEN}
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -83,7 +82,7 @@ services:
       - -lc
       - |
         python /home/jovyan/collect_logs.py &
-        exec start-notebook.py --ServerApp.base_url=/jupyter/ --ServerApp.token="$${JUPYTER_TOKEN}"
+        exec start-notebook.py --ServerApp.base_url=/jupyter/ --IdentityProvider.token=''
     depends_on:
       database:
         condition: service_healthy
