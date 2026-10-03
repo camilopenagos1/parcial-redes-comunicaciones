@@ -1,684 +1,347 @@
-INFORME TÉCNICO – PARCIAL 2 DE COMUNICACIONES
-1. Introducción
+# Informe técnico – Parcial 2 de Comunicaciones
 
-En este parcial se realizó la implementación de una infraestructura de servicios utilizando contenedores Docker, con el objetivo de integrar diferentes herramientas de comunicación, administración, almacenamiento y análisis de información dentro de un mismo proyecto.
+**Estudiante:** Duvan – Ingeniería Mecatrónica
+**Repositorio:** https://github.com/camilopenagos1/parcial-redes-comunicaciones
+**Fecha de implementación:** 2 de octubre de 2026
 
-La idea principal fue construir una arquitectura en la cual varios servicios pudieran comunicarse entre sí utilizando redes internas de Docker, mientras que el acceso desde el equipo se realizara principalmente mediante un servidor Nginx encargado de recibir las peticiones HTTP y dirigirlas hacia el servicio correspondiente.
+---
 
-Los servicios utilizados fueron Nginx, Joomla, PostgreSQL, Jupyter y Grafana. Cada uno cumple una función específica dentro de la arquitectura. Nginx funciona como proxy inverso, Joomla como portal web, PostgreSQL como sistema de almacenamiento de datos, Jupyter como herramienta para realizar análisis mediante Python y Grafana como herramienta de visualización.
+## 1. Introducción
 
-Uno de los requisitos importantes del parcial fue que el proyecto pudiera ser clonado en una máquina limpia y posteriormente ejecutado sin tener que realizar manualmente toda la configuración de los servicios. Por esta razón, se organizó el proyecto mediante un archivo docker-compose.yml, variables de entorno y diferentes archivos de configuración.
+En este parcial implementé una infraestructura de servicios con contenedores Docker. La idea fue integrar en un solo proyecto un proxy inverso, un portal web, una base de datos, una herramienta de análisis y una de visualización, de forma que todo se levante con un único comando a partir de un repositorio.
 
-Durante la implementación también se presentaron algunos problemas relacionados principalmente con la creación de archivos en Windows, la estructura de carpetas y la configuración de los diferentes servicios. Estos problemas fueron solucionados durante el proceso de implementación y se documentan en este informe.
+| Servicio | Función | Imagen |
+|---|---|---|
+| Nginx | Proxy inverso y único punto de entrada (puerto 80) | `nginx:alpine` |
+| Joomla | Portal web, se instala automáticamente | `joomla:latest` |
+| PostgreSQL | Base de datos del portal y de los registros HTTP | `postgres:16-alpine` |
+| Jupyter | Análisis de los registros con Python | construida desde `jupyter/base-notebook` |
+| Grafana | Dashboards de tráfico HTTP | `grafana/grafana:latest` |
 
-2. Objetivos
-2.1. Objetivo general
+El requisito más importante fue que el profesor pueda **clonar el repositorio en una máquina limpia y ejecutar un único comando**, sin completar asistentes de instalación. Por eso toda la configuración (variables, Nginx, dashboards, fuente de datos, tabla SQL y autoinstalación de Joomla) quedó dentro del repositorio.
 
-Implementar una arquitectura de servicios contenerizados mediante Docker que permita integrar Nginx, Joomla, PostgreSQL, Jupyter y Grafana, estableciendo comunicación entre los diferentes servicios y permitiendo el análisis y visualización de registros de tráfico HTTP.
+---
 
-2.2. Objetivos específicos
-Crear una estructura organizada de carpetas para almacenar las configuraciones de cada servicio.
-Implementar los diferentes servicios utilizando Docker Compose.
-Configurar Nginx como proxy inverso.
-Implementar Joomla como portal web.
-Utilizar PostgreSQL para almacenar los registros de las peticiones HTTP.
-Utilizar Jupyter para realizar análisis de los datos almacenados.
-Utilizar Grafana para generar visualizaciones de los registros.
-Crear redes Docker para controlar la comunicación entre los contenedores.
-Utilizar volúmenes para conservar la información de los servicios.
-Documentar el proceso de implementación y los problemas encontrados.
-Comprobar que la infraestructura pueda ser desplegada desde un repositorio en una máquina limpia.
-3. Estructura general del proyecto
+## 2. Objetivos
 
-Para comenzar el desarrollo se creó un repositorio llamado:
+**General:** implementar una arquitectura de servicios contenerizados con Docker que integre Nginx, Joomla, PostgreSQL, Jupyter y Grafana, y que permita analizar y visualizar el tráfico HTTP.
 
+**Específicos:**
+
+1. Organizar las configuraciones de cada servicio en carpetas.
+2. Levantar los cinco servicios con Docker Compose.
+3. Configurar Nginx como proxy inverso con rutas `/`, `/jupyter/` y `/grafana/`.
+4. Instalar Joomla de forma automática sobre PostgreSQL.
+5. Guardar los registros de Nginx en PostgreSQL.
+6. Analizar los datos en Jupyter y visualizarlos en Grafana.
+7. Separar el tráfico con dos redes Docker y conservar datos con volúmenes.
+8. Documentar los problemas encontrados y su solución.
+9. Comprobar el despliegue desde un clon limpio del repositorio.
+
+---
+
+## 3. Estructura del proyecto
+
+```
 parcial-redes-comunicaciones
-
-Inicialmente el repositorio se había creado dentro de:
-
-C:\Windows\System32
-
-Sin embargo, esta ubicación no era adecuada debido a que corresponde a una carpeta del sistema operativo.
-
-Por esta razón, se decidió mover el proyecto a la carpeta del usuario:
-
-C:\Users\duvan\parcial-redes-comunicaciones
-
-El movimiento permitió trabajar sobre una ubicación propia del usuario y evitar problemas de permisos relacionados con las carpetas del sistema.
-
-Después de realizar el cambio se verificó el repositorio utilizando:
-
-git status
-
-De esta manera se comprobó que el repositorio Git continuaba funcionando después de mover la carpeta.
-
-La estructura utilizada para el proyecto fue:
-
-parcial-redes-comunicaciones
-│
-├── .env
+├── .env                     (local, no se sube a GitHub)
 ├── .env.example
 ├── .gitignore
 ├── docker-compose.yml
 ├── README.md
 ├── INFORME.md
-│
-├── nginx
+├── evidencias/              (capturas de este informe)
+├── nginx/
 │   └── default.conf
-│
-├── jupyter
+├── jupyter/
 │   ├── Dockerfile
-│   └── notebooks
+│   └── notebooks/
 │       └── analisis_datos.ipynb
-│
-├── grafana
-│   ├── dashboards
+├── grafana/
+│   ├── dashboards/
 │   │   └── joomla_logs.json
-│   │
-│   └── provisioning
-│       ├── dashboards
-│       │   └── dashboard.yml
-│       │
-│       └── datasources
-│           └── datasource.yml
-│
-└── scripts
+│   └── provisioning/
+│       ├── dashboards/dashboard.yml
+│       └── datasources/datasource.yml
+└── scripts/
     ├── 01-traffic.sql
     └── collect_logs.py
+```
 
-Esta organización permite separar la configuración de cada servicio y facilita que otra persona pueda entender la estructura del proyecto.
+El proyecto vive en `C:\Users\duvan\parcial-redes-comunicaciones`. Al principio el repositorio Git se creó por error dentro de `C:\Windows\System32` (carpeta del sistema), por eso lo moví a la carpeta del usuario y comprobé con `git status` que Git seguía funcionando.
 
-4. Configuración de las variables de entorno
+---
 
-Uno de los primeros archivos creados fue:
+## 4. Topología y flujo de información
 
-.env.example
+### 4.1. Arquitectura
 
-Este archivo contiene las variables necesarias para configurar PostgreSQL, Joomla, Jupyter y Grafana.
+```
+                 NAVEGADOR / HOST
+                        │  HTTP :80
+                        ▼
+                  ┌───────────┐
+                  │   NGINX   │  (frontend_net)
+                  └─────┬─────┘
+        ┌───────────────┼───────────────┐
+        ▼               ▼               ▼
+   ┌─────────┐    ┌──────────┐    ┌──────────┐
+   │ Joomla  │    │ Jupyter  │    │ Grafana  │   frontend_net + backend_net
+   └────┬────┘    └────┬─────┘    └────┬─────┘
+        └──────────────┼───────────────┘
+                       ▼
+                ┌─────────────┐
+                │ PostgreSQL  │   solo backend_net (internal: true)
+                └─────────────┘
+```
 
-Entre las variables utilizadas se encuentran:
+- **`frontend_net`** (bridge): conecta Nginx con Joomla, Jupyter y Grafana.
+- **`backend_net`** (bridge, `internal: true`): conecta esos tres servicios con PostgreSQL. Al ser interna, no tiene salida hacia el exterior.
+- Solo Nginx publica un puerto en el equipo (`80:80`). PostgreSQL, Jupyter y Grafana no publican puertos.
 
-POSTGRES_DB
-POSTGRES_USER
-POSTGRES_PASSWORD
-JOOMLA_DB_TYPE
-JOOMLA_DB_HOST
-JOOMLA_DB_PORT
-JOOMLA_DB_NAME
-JOOMLA_DB_USER
-JOOMLA_DB_PASSWORD
-JUPYTER_TOKEN
-GRAFANA_ADMIN_USER
-GRAFANA_ADMIN_PASSWORD
+### 4.2. Flujo de las peticiones
 
-La ventaja de utilizar variables de entorno es que las credenciales y configuraciones no tienen que estar escritas directamente dentro de docker-compose.yml.
+1. El navegador envía la petición HTTP a `localhost:80`.
+2. Nginx la recibe y decide el destino según la ruta: `/` → `joomla:80`, `/jupyter/` → `jupyter:8888`, `/grafana/` → `grafana:3000`.
+3. Joomla guarda su contenido en PostgreSQL (`database:5432`) por `backend_net`.
 
-Posteriormente se creó el archivo local:
+### 4.3. Recolección de registros
 
-.env
+```
+Nginx → access.log (volumen nginx_logs) → collect_logs.py → PostgreSQL (nginx_requests)
+                                                              ├── Jupyter (análisis)
+                                                              └── Grafana (dashboard)
+```
 
-mediante:
+Nginx escribe `access.log` en el volumen `nginx_logs`, que se monta en el contenedor de Jupyter (solo lectura). El script `collect_logs.py` corre dentro de ese contenedor, lee cada línea nueva con una expresión regular y la inserta en la tabla `nginx_requests`. Así no hizo falta un sexto contenedor.
 
+La tabla guarda: `id`, `ts`, `client_ip`, `method`, `path`, `status` y `bytes_sent`, con índices por fecha y por código de respuesta.
+
+---
+
+## 5. Configuración de los servicios
+
+### 5.1. Variables de entorno
+
+Todas las credenciales están en `.env.example` (plantilla que sí se sube) y se copian a `.env` (que no se sube, está en `.gitignore`):
+
+```powershell
 Copy-Item .env.example .env
+```
 
-El archivo .env se utiliza para ejecutar el proyecto localmente, mientras que .env.example sirve como plantilla para que otra persona pueda crear su propia configuración.
+Incluye las variables de PostgreSQL, de conexión y autoinstalación de Joomla (`JOOMLA_SITE_NAME`, `JOOMLA_ADMIN_USER`, `JOOMLA_ADMIN_USERNAME`, `JOOMLA_ADMIN_PASSWORD`, `JOOMLA_ADMIN_EMAIL`), `JUPYTER_TOKEN` y las de Grafana.
 
-También se creó un .gitignore para evitar que .env sea enviado al repositorio.
+### 5.2. Nginx
 
-5. Configuración de Nginx
+`nginx/default.conf` define tres `location`. Para Jupyter y Grafana se agregan las cabeceras `Upgrade` y `Connection` para soportar WebSockets, y `X-Forwarded-For` / `X-Forwarded-Proto` para conservar los datos del cliente.
 
-Nginx se utilizó como punto de entrada de la infraestructura.
+### 5.3. Jupyter
 
-El archivo utilizado fue:
+El `Dockerfile` parte de `jupyter/base-notebook` e instala `pandas`, `matplotlib`, `sqlalchemy` y `psycopg[binary]`. El servidor arranca con `--ServerApp.base_url=/jupyter/` para funcionar detrás del proxy, y en segundo plano lanza `collect_logs.py`.
 
-nginx/default.conf
+### 5.4. Grafana
 
-La función principal de Nginx es recibir las peticiones HTTP y determinar hacia qué servicio deben ser enviadas.
+Se configura por *provisioning*: `datasource.yml` crea la fuente PostgreSQL (`database:5432`, uid `postgres-ds`), `dashboard.yml` apunta a la carpeta de dashboards y `joomla_logs.json` define dos paneles: peticiones HTTP por código y direcciones IP con más peticiones. Se arranca con `GF_SERVER_SERVE_FROM_SUB_PATH=true` para funcionar en `/grafana/`.
 
-La arquitectura utiliza las siguientes rutas:
+### 5.5. Volúmenes
 
-http://localhost/
+| Volumen | Uso |
+|---|---|
+| `postgres_data` | Datos de PostgreSQL |
+| `joomla_data` | Archivos del portal |
+| `grafana_data` | Datos de Grafana |
+| `nginx_logs` | Registros de Nginx compartidos con Jupyter |
 
-para Joomla,
+---
 
-http://localhost/jupyter/
+## 6. Problemas encontrados y soluciones
 
-para Jupyter,
+### 6.1. Repositorio creado en `C:\Windows\System32`
+**Problema:** el repositorio quedó en una carpeta protegida del sistema.
+**Solución:** lo moví con `Move-Item` a `C:\Users\duvan\parcial-redes-comunicaciones` y verifiqué con `git status`.
 
-y:
+### 6.2. Dockerfile guardado como `Dockerfile.txt`
+**Problema:** el Bloc de notas agregó `.txt`, entonces `Get-Content .\jupyter\Dockerfile` decía que el archivo no existía.
+**Solución:** `Rename-Item ".\jupyter\Dockerfile.txt" "Dockerfile"` y revisé con `Get-ChildItem`. Desde entonces compruebo siempre la extensión real de los archivos en Windows.
 
-http://localhost/grafana/
+### 6.3. Docker Desktop no estaba corriendo
+**Problema:** `docker compose up -d --build` mostraba `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`.
+**Causa:** Docker Desktop estaba instalado pero su motor no estaba iniciado.
+**Solución:** abrí Docker Desktop, esperé a que indicara *Engine running* y confirmé con `docker version` que aparecían Client y Server.
 
-para Grafana.
+### 6.4. Comando de Jupyter partido en varias líneas
+**Problema:** en `docker-compose.yml`, las opciones `--ServerApp...` estaban en líneas separadas y bash las ejecutaba como comandos distintos.
+**Solución:** dejé el comando completo en una sola línea:
+```
+exec start-notebook.py --ServerApp.base_url=/jupyter/ --ServerApp.token="$${JUPYTER_TOKEN}"
+```
 
-De esta forma, desde el navegador se utiliza un único punto de acceso.
+### 6.5. `access.log` de Nginx era un enlace simbólico
+**Problema:** la imagen oficial de Nginx enlaza `access.log` a `/dev/stdout`, por lo que el recolector no veía ninguna línea.
+**Solución:** el contenedor de Nginx borra los enlaces al arrancar y deja que Nginx cree archivos reales:
+```
+rm -f /var/log/nginx/access.log /var/log/nginx/error.log && exec nginx -g 'daemon off;'
+```
 
-Por ejemplo, una petición dirigida a:
+### 6.6. Joomla no se instalaba solo
+**Problema:** con solo las variables de base de datos, Joomla mostraría el asistente de instalación, y el parcial exige que funcione sin pasos manuales.
+**Solución:** agregué las variables de autoinstalación (sitio, administrador, contraseña y correo). El log de Joomla confirmó la instalación automática: creó la base de datos en PostgreSQL, la pobló, escribió `configuration.php` y terminó con `Joomla has been installed`. El aviso `AH00558` de Apache es solo informativo.
 
-/jupyter/
+### 6.7. El recolector no guardaba registros (conteo en 0)
+**Problema:** `SELECT COUNT(*) FROM nginx_requests` devolvía 0 aunque Nginx recibía peticiones.
+**Causa:** el script abría `access.log` mientras todavía era el enlace a `/dev/stdout` y seguía leyéndolo después de que Nginx lo reemplazara por un archivo real.
+**Solución:** reescribí `collect_logs.py` para esperar un archivo real (no un enlace), abrirlo y reabrirlo si cambia su inodo. Verifiqué que el proceso corría con `ps aux | grep collect_logs` y que el log mostraba `Recolector: conectado a PostgreSQL` y `Recolector: leyendo /var/log/nginx/access.log`. Después del cambio, la consulta por código devolvió registros 200 y 404.
 
-es enviada internamente hacia:
+### 6.8. Error 404 al abrir Jupyter y Grafana por el proxy
+**Problema:** `http://localhost/jupyter/` mostraba "404: No encontrado".
+**Causa:** `proxy_pass http://jupyter:8888/;` terminaba en `/`, así que Nginx quitaba el prefijo `/jupyter/`, pero Jupyter espera recibirlo por su `base_url`. Con Grafana pasa lo mismo por `serve_from_sub_path`.
+**Solución:** quité la `/` final: `proxy_pass http://jupyter:8888;` y `proxy_pass http://grafana:3000;`, y reinicié Nginx.
 
-jupyter:8888
+### 6.9. Error de pandas en el cuaderno de Jupyter
+**Problema:** al ejecutar `pd.read_sql_query(consulta, engine)` apareció un `AttributeError` y el aviso *pandas only supports SQLAlchemy connectable*.
 
-Mientras que las peticiones hacia:
+![Error de pandas con SQLAlchemy en Jupyter](evidencias/jupyter-error-pandas.png)
 
-/grafana/
+**Causa:** incompatibilidad entre las versiones de pandas y SQLAlchemy instaladas en la imagen. La conexión a PostgreSQL estaba bien.
+**Solución:** ejecuté la consulta directamente con SQLAlchemy y construí el DataFrame a mano:
+```python
+with engine.connect() as conn:
+    resultado = conn.execute(text(consulta))
+    df = pd.DataFrame(resultado.fetchall(), columns=list(resultado.keys()))
+```
+Como la carpeta `notebooks` está montada como volumen, no fue necesario reconstruir la imagen.
 
-son enviadas hacia:
+### 6.10. Credenciales que no cambiaban
+**Problema:** al cambiar usuario y contraseña en `.env`, el acceso seguía igual.
+**Causa:** Joomla y Grafana guardan las credenciales la primera vez que arrancan, dentro de sus volúmenes.
+**Solución:** actualicé `.env.example`, copié a `.env` y recreé todo con `docker compose down -v` y `docker compose up -d --build`.
 
-grafana:3000
+### 6.11. Archivos que no debían subirse a GitHub
+**Problema:** `git status` mostraba `.env` y `.ipynb_checkpoints` listos para el commit, porque el `.gitignore` no existía.
+**Solución:** creé el `.gitignore` desde PowerShell, quité esos archivos con `git rm --cached` y verifiqué que no aparecieran antes del commit. Como no había commits previos, `.env` nunca entró al historial.
 
-Esto permite evitar que cada servicio tenga que publicar directamente su puerto en el computador.
+### 6.12. Errores de Git al subir el proyecto
+- **Identidad no configurada:** `unable to auto-detect email address`. Configuré `user.name` y `user.email` con `git config --global`.
+- **Remoto con valor de ejemplo:** `origin` apuntaba a una URL con `TU_USUARIO`. Lo corregí con `git remote set-url`.
+- **`Repository not found`:** mi usuario de GitHub era `camilopenagos1`, no el que había usado en la URL. Cambié el remoto y la autenticación se hizo desde el navegador.
 
-6. Configuración de Jupyter
+![Repositorio creado en GitHub](evidencias/github-repositorio.png)
 
-Para Jupyter se creó un archivo:
+---
 
-jupyter/Dockerfile
+## 7. Verificación de funcionamiento
 
-El Dockerfile utiliza como base:
+### 7.1. Estado de los contenedores
 
-FROM jupyter/base-notebook:latest
+Los cinco servicios quedaron arriba: `parcial_database` (healthy), `parcial_jupyter` (healthy), `parcial_joomla`, `parcial_grafana` y `parcial_nginx`, que es el único con puerto publicado (`0.0.0.0:80->80/tcp`).
 
-y posteriormente instala las bibliotecas necesarias para el análisis:
+<!-- Agregar la captura de `docker compose ps` y quitar estos comentarios:
+![docker compose ps](evidencias/docker-compose-ps.png)
+-->
 
-pandas
-matplotlib
-sqlalchemy
-psycopg
+### 7.2. Joomla
 
-Estas bibliotecas permiten trabajar con los datos almacenados en PostgreSQL y generar gráficas.
+`http://localhost/` muestra el sitio ya instalado, sin asistente. El panel de administración está en `http://localhost/administrator`.
 
-Problema encontrado durante esta etapa
+<!-- ![Joomla funcionando](evidencias/joomla.png) -->
 
-Durante la creación del Dockerfile apareció un problema debido a Windows.
+### 7.3. Jupyter
 
-Al intentar verificar el archivo mediante:
+En `http://localhost/jupyter/` (con el token) abrí `analisis_datos.ipynb` y ejecuté todas las celdas. El cuaderno obtuvo **739 registros** desde PostgreSQL y mostró las peticiones reales, incluidas las propias de Jupyter (`/jupyter/api/...`).
 
-Get-Content .\jupyter\Dockerfile
+![Tabla de registros en Jupyter](evidencias/jupyter-tabla.png)
 
-PowerShell indicó que el archivo no existía.
+![Peticiones por código HTTP](evidencias/jupyter-grafica-codigos.png)
 
-Después de revisar la carpeta se encontró que el archivo realmente había sido creado como:
+![Direcciones IP con más peticiones](evidencias/jupyter-grafica-ips.png)
 
-Dockerfile.txt
+**Interpretación de los códigos:**
 
-Esto ocurre porque el Bloc de notas puede agregar automáticamente la extensión .txt.
+- **200:** respuesta normal. Es la gran mayoría.
+- **304:** el navegador reutilizó archivos de su caché.
+- **101:** cambio de protocolo a WebSocket que usa Jupyter; demuestra que Nginx reenvía correctamente `Upgrade` y `Connection`.
+- **204 y 201:** respuestas sin contenido y recursos creados por la API de Jupyter.
+- **302:** redirecciones, por ejemplo de `/jupyter` a `/jupyter/`.
+- **404:** rutas inexistentes que generé a propósito (`/no-existe`).
+- **499:** conexiones que el cliente cerró antes de recibir respuesta, típicas de WebSockets y recargas.
 
-Solución
+### 7.4. Grafana
 
-Se corrigió el nombre utilizando:
+En `http://localhost/grafana/` el dashboard **Tráfico web - Parcial Comunicaciones** apareció solo, sin crearlo a mano, dentro de la carpeta *Parcial Comunicaciones*. Muestra la serie de peticiones por código y la tabla de IPs (659 peticiones desde `172.20.0.1` en el rango consultado).
 
-Rename-Item ".\jupyter\Dockerfile.txt" "Dockerfile"
+![Dashboard de Grafana](evidencias/grafana-dashboard.png)
 
-Posteriormente se verificó:
+**Sobre la IP `172.20.0.1`:** es la puerta de enlace de la red `frontend_net`. Docker Desktop enruta el tráfico del navegador a través de ella, así que Nginx registra esa IP y no la del computador. Esto se relaciona con la capa 3 del modelo OSI.
 
-Get-ChildItem .\jupyter
+### 7.5. Persistencia y redes
 
-y finalmente:
+<!--
+Agregar las capturas de estos comandos y quitar estos comentarios:
+docker compose down / up -d  y  SELECT COUNT(*) FROM nginx_requests;  (antes y después)
+docker volume ls
+docker network inspect parcial-redes-comunicaciones_backend_net   ("Internal": true)
+docker compose port nginx 80
+![Persistencia](evidencias/persistencia.png)
+![Redes](evidencias/redes-inspect.png)
+-->
 
-Get-Content .\jupyter\Dockerfile
+Al ejecutar `docker compose down` sin `-v` y volver a levantar, el número de registros se conserva porque los volúmenes no se eliminan. `docker network inspect` permite comprobar que `backend_net` es interna y que `database` solo está en esa red.
 
-Con esto se comprobó que el archivo tenía el nombre correcto y que Docker podría utilizarlo durante la construcción de la imagen.
+---
 
-Este fue uno de los problemas prácticos más importantes encontrados durante la organización de los archivos, ya que aunque el contenido estaba correcto, Docker no podía encontrarlo debido a la extensión adicional.
+## 8. Análisis desde el modelo OSI
 
-7. Cuaderno de análisis de datos
+### 8.1. Capa 7 – Aplicación
+Se usa HTTP entre el navegador, Nginx y las aplicaciones web. Nginx agrega o conserva las cabeceras `Host`, `X-Real-IP`, `X-Forwarded-For` y `X-Forwarded-Proto` para que Joomla, Jupyter y Grafana conozcan los datos del cliente original, y `Upgrade`/`Connection` para los WebSockets de Jupyter y Grafana. Los servicios también se comunican con PostgreSQL mediante su protocolo propio. El formato del `access.log` (IP, fecha, método, ruta, código y bytes) es lo que analiza el recolector.
 
-Dentro de:
+### 8.2. Capa 4 – Transporte
+Todo va sobre TCP. Puertos usados: **80** (Nginx, el único publicado), **5432** (PostgreSQL), **8888** (Jupyter) y **3000** (Grafana). Los tres últimos solo se alcanzan dentro de las redes Docker. Los códigos 101 y 499 del registro se relacionan con conexiones persistentes y con conexiones cerradas por el cliente.
 
-jupyter/notebooks
+### 8.3. Capa 3 – Red
+Docker crea dos redes bridge, `frontend_net` y `backend_net`. En `backend_net` (`internal: true`) no hay salida hacia el exterior, lo que aísla a PostgreSQL. Docker también ofrece un DNS interno, por eso los servicios se alcanzan por nombre (`database`, `joomla`, `jupyter`, `grafana`) y no por IP. La IP `172.20.0.1` que aparece en los registros es la puerta de enlace de la red. El acceso desde el host usa reenvío de puertos con NAT (`80:80`).
 
-se creó:
+### 8.4. Capa 2 – Enlace de datos
+Cada red bridge se implementa como un puente virtual (`br-*`) en el que se conectan las interfaces virtuales `veth*` de los contenedores. La resolución de direcciones IP a MAC dentro de cada red se hace con ARP. Se puede observar con `docker compose exec nginx ip addr` y `docker compose exec nginx ip neigh`.
 
-analisis_datos.ipynb
+<!-- ![Capas 2 y 3](evidencias/osi-ip-addr.png) -->
 
-El cuaderno está diseñado para conectarse a PostgreSQL mediante SQLAlchemy.
+---
 
-La conexión utiliza como host:
+## 9. Cumplimiento del requisito de despliegue
 
-database
+Para usar el proyecto desde una máquina limpia:
 
-Esto es posible porque Docker proporciona resolución de nombres entre los contenedores conectados a la misma red.
-
-El cuaderno consulta la tabla:
-
-nginx_requests
-
-y obtiene información como:
-
-fecha y hora de la petición;
-dirección IP;
-método HTTP;
-ruta solicitada;
-código de respuesta;
-cantidad de bytes enviados.
-
-Posteriormente se utilizan los datos para generar estadísticas y gráficas.
-
-Por ejemplo, se realiza un análisis de las peticiones agrupadas por código HTTP y también de las direcciones IP que realizan mayor cantidad de peticiones.
-
-8. PostgreSQL y almacenamiento de registros
-
-PostgreSQL se utilizó como base de datos del proyecto.
-
-Para almacenar los registros de Nginx se creó el archivo:
-
-scripts/01-traffic.sql
-
-En este archivo se define la tabla:
-
-nginx_requests
-
-La tabla contiene los campos:
-
-id
-ts
-client_ip
-method
-path
-status
-bytes_sent
-
-Cada uno almacena información diferente de las peticiones HTTP.
-
-Por ejemplo:
-
-client_ip
-
-almacena la dirección IP que realizó la petición.
-
-Mientras que:
-
-status
-
-almacena el código HTTP generado por el servidor.
-
-También se crearon índices para mejorar las consultas relacionadas con el tiempo y los códigos de respuesta.
-
-9. Recolección de los registros de Nginx
-
-Para pasar los registros desde Nginx hasta PostgreSQL se creó:
-
-scripts/collect_logs.py
-
-Este programa utiliza Python y la biblioteca psycopg.
-
-El funcionamiento general es:
-
-Nginx
-   ↓
-access.log
-   ↓
-collect_logs.py
-   ↓
-PostgreSQL
-   ↓
-nginx_requests
-
-El programa permanece ejecutándose y espera nuevas líneas en:
-
-/var/log/nginx/access.log
-
-Cuando aparece una nueva petición, el programa analiza el registro mediante una expresión regular.
-
-Después extrae:
-
-IP
-fecha
-método
-ruta
-código HTTP
-bytes
-
-y los inserta en PostgreSQL.
-
-Una ventaja de esta solución es que no fue necesario crear un sexto contenedor exclusivamente para realizar la recolección, ya que el script se ejecuta dentro del contenedor de Jupyter.
-
-10. Configuración de Grafana
-
-Grafana se utilizó para visualizar los datos almacenados en PostgreSQL.
-
-Se configuró una fuente de datos mediante:
-
-grafana/provisioning/datasources/datasource.yml
-
-La conexión apunta a:
-
-database:5432
-
-Esto permite que Grafana se comunique directamente con PostgreSQL mediante la red interna de Docker.
-
-También se creó:
-
-grafana/provisioning/dashboards/dashboard.yml
-
-Este archivo permite que Grafana cargue automáticamente el dashboard sin que sea necesario crearlo manualmente cada vez que se levanta el proyecto.
-
-El dashboard utilizado fue:
-
-grafana/dashboards/joomla_logs.json
-
-Se configuraron dos visualizaciones principales:
-
-Peticiones HTTP agrupadas por código de respuesta.
-Direcciones IP con mayor cantidad de peticiones.
-
-Esto permite observar el tráfico generado durante las pruebas del portal.
-
-11. Docker Compose
-
-El archivo principal del proyecto es:
-
-docker-compose.yml
-
-Este archivo permite levantar toda la infraestructura de forma conjunta.
-
-Los servicios definidos son:
-
-nginx
-database
-joomla
-jupyter
-grafana
-
-La arquitectura general puede representarse así:
-
-                    INTERNET / HOST
-                         │
-                         │ HTTP :80
-                         ▼
-                    ┌─────────┐
-                    │  NGINX  │
-                    └────┬────┘
-                         │
-          ┌──────────────┼──────────────┐
-          │              │              │
-          ▼              ▼              ▼
-      ┌────────┐    ┌─────────┐    ┌─────────┐
-      │ Joomla │    │ Jupyter │    │ Grafana │
-      └────┬───┘    └────┬────┘    └────┬────┘
-           │             │              │
-           └─────────────┼──────────────┘
-                         │
-                         ▼
-                  ┌─────────────┐
-                  │ PostgreSQL  │
-                  └─────────────┘
-12. Redes Docker
-
-Se definieron dos redes:
-
-frontend_net
-
-y:
-
-backend_net
-
-La red frontend_net permite la comunicación entre Nginx y los servicios que deben ser accesibles mediante el proxy.
-
-La red backend_net se utiliza para las comunicaciones internas con PostgreSQL.
-
-Esta separación permite organizar mejor el tráfico entre los contenedores.
-
-Además, backend_net se configuró como una red interna:
-
-internal: true
-
-De esta forma se busca evitar que los servicios conectados a esta red tengan acceso directo desde el exterior.
-
-13. Volúmenes Docker
-
-También se utilizaron volúmenes para conservar información.
-
-Entre ellos:
-
-postgres_data
-joomla_data
-grafana_data
-nginx_logs
-
-Estos volúmenes tienen diferentes funciones.
-
-postgres_data permite conservar la información de PostgreSQL.
-
-joomla_data conserva los archivos del portal.
-
-grafana_data conserva la información de Grafana.
-
-nginx_logs permite compartir los registros de Nginx con el contenedor de Jupyter para que puedan ser procesados.
-
-Esto es importante porque los contenedores pueden detenerse y volver a iniciarse sin perder automáticamente toda la información almacenada.
-
-14. Problemas encontrados y soluciones
-
-Durante la realización del proyecto se presentaron varios problemas de configuración.
-
-14.1. Repositorio creado en una carpeta incorrecta
-
-Inicialmente el repositorio se encontraba en:
-
-C:\Windows\System32
-
-Esto no era conveniente porque se trata de una carpeta protegida del sistema.
-
-Solución
-
-Se movió el proyecto a:
-
-C:\Users\duvan\parcial-redes-comunicaciones
-
-y posteriormente se verificó que Git continuara funcionando.
-
-14.2. Archivos creados con extensión .txt
-
-Uno de los problemas encontrados fue la creación del Dockerfile como:
-
-Dockerfile.txt
-
-en lugar de:
-
-Dockerfile
-
-Esto provocaba que el comando:
-
-Get-Content .\jupyter\Dockerfile
-
-generara un error indicando que la ruta no existía.
-
-Solución
-
-Se utilizó:
-
-Rename-Item ".\jupyter\Dockerfile.txt" "Dockerfile"
-
-Después se verificó nuevamente la carpeta y el contenido.
-
-Este problema permitió comprobar la importancia de revisar siempre la extensión real de los archivos cuando se trabaja desde Windows.
-
-14.3. Organización de los archivos
-
-Otro aspecto que requirió atención fue mantener cada archivo en la ubicación correcta.
-
-Por ejemplo:
-
-jupyter/Dockerfile
-
-no puede quedar en:
-
-jupyter/notebooks/
-
-De la misma manera, los archivos de Grafana deben estar separados entre:
-
-grafana/provisioning
-
-y:
-
-grafana/dashboards
-
-La estructura de carpetas se fue comprobando utilizando comandos como:
-
-Get-ChildItem
-
-y:
-
-Get-ChildItem .\jupyter
-
-Esto permitió detectar errores de ubicación antes de intentar levantar Docker.
-
-15. Validación del proyecto
-
-Antes de ejecutar los contenedores se debe comprobar que Docker Desktop esté funcionando correctamente.
-
-Se utilizarán los comandos:
-
-docker --version
-
-y:
-
-docker compose version
-
-Después se debe validar la estructura del archivo:
-
-docker compose config
-
-Este comando es importante porque permite detectar errores de sintaxis o variables antes de iniciar los contenedores.
-
-Posteriormente se puede ejecutar:
-
-docker compose up -d --build
-
-El parámetro --build permite construir la imagen personalizada de Jupyter a partir del Dockerfile.
-
-Finalmente se puede comprobar el estado mediante:
-
-docker compose ps
-
-y revisar los registros mediante:
-
-docker compose logs --tail=100
-16. Pruebas de funcionamiento
-
-Una vez que los contenedores estén ejecutándose, se deben realizar diferentes pruebas.
-
-Primero se accede al portal mediante:
-
-http://localhost/
-
-Al realizar varias peticiones se generan registros en Nginx.
-
-Posteriormente se puede ingresar a:
-
-http://localhost/jupyter/
-
-para abrir el cuaderno:
-
-analisis_datos.ipynb
-
-Desde allí se pueden ejecutar las celdas que consultan PostgreSQL.
-
-Finalmente se accede a:
-
-http://localhost/grafana/
-
-para comprobar el dashboard.
-
-El objetivo es que las peticiones realizadas al portal aparezcan posteriormente en las visualizaciones de Grafana.
-
-También se puede comprobar directamente la cantidad de registros almacenados utilizando:
-
-docker compose exec database psql -U joomla_user -d joomla_db -c "SELECT COUNT(*) FROM nginx_requests;"
-
-Al generar nuevas peticiones, el número de registros debe aumentar.
-
-17. Análisis desde el modelo OSI
-
-La implementación también permite relacionar la infraestructura con diferentes capas del modelo OSI.
-
-17.1. Capa 7 – Aplicación
-
-En esta capa se encuentran los protocolos y servicios utilizados directamente por las aplicaciones.
-
-En el proyecto se utiliza principalmente HTTP para las comunicaciones entre el navegador y Nginx.
-
-También intervienen las aplicaciones web Joomla, Jupyter y Grafana.
-
-Los registros generados por Nginx contienen información de las peticiones HTTP, como:
-
-método
-ruta
-código de respuesta
-17.2. Capa 4 – Transporte
-
-La comunicación utiliza principalmente TCP.
-
-Entre los puertos utilizados por los servicios están:
-
-80    → Nginx
-5432  → PostgreSQL
-8888  → Jupyter
-3000  → Grafana
-
-Sin embargo, no todos estos puertos se publican directamente al computador.
-
-Los servicios internos pueden comunicarse mediante las redes Docker utilizando los nombres de los servicios.
-
-17.3. Capa 3 – Red
-
-Docker crea redes virtuales que permiten la comunicación entre los diferentes contenedores.
-
-En este proyecto se utilizan:
-
-frontend_net
-backend_net
-
-Además, Docker proporciona resolución de nombres interna, permitiendo utilizar nombres como:
-
-database
-
-en lugar de tener que conocer directamente la dirección IP del contenedor.
-
-17.4. Capa 2 – Enlace de datos
-
-Docker utiliza interfaces virtuales y bridges para conectar los diferentes contenedores.
-
-Esto permite que los contenedores puedan comunicarse como si estuvieran conectados a una red virtual.
-
-De esta manera, Docker crea una infraestructura de red independiente de la red física utilizada por el computador.
-
-18. Cumplimiento del requisito de despliegue
-
-Uno de los puntos más importantes del parcial es que el proyecto pueda ser utilizado desde una máquina limpia.
-
-La idea es que una persona pueda clonar el repositorio y preparar las variables mediante:
-
-git clone URL_DEL_REPOSITORIO
+```powershell
+git clone https://github.com/camilopenagos1/parcial-redes-comunicaciones.git
 cd parcial-redes-comunicaciones
 Copy-Item .env.example .env
-
-y posteriormente ejecutar:
-
 docker compose up -d
+```
 
-De esta manera, la configuración de los servicios se encuentra almacenada dentro del repositorio y Docker Compose se encarga de crear la infraestructura.
+Requisitos: Git, Docker Desktop abierto y el puerto 80 libre. Docker descarga las imágenes, construye Jupyter, instala Joomla, crea la tabla `nginx_requests`, carga la fuente de datos y el dashboard de Grafana, y arranca el recolector, todo sin intervención manual. Como la tabla empieza vacía, hay que generar tráfico para ver datos:
 
-Este procedimiento evita tener que crear manualmente cada contenedor.
+```powershell
+1..30 | ForEach-Object { curl.exe -s -o NUL http://localhost/ }
+```
 
-Además, los archivos de configuración de Nginx, Grafana, Jupyter y PostgreSQL se encuentran dentro del proyecto.
+| Servicio | Dirección | Acceso |
+|---|---|---|
+| Joomla | http://localhost/ | Público |
+| Joomla (admin) | http://localhost/administrator | Variables `JOOMLA_ADMIN_*` del `.env.example` |
+| Jupyter | http://localhost/jupyter/ | Token `JUPYTER_TOKEN` |
+| Grafana | http://localhost/grafana/ | Variables `GRAFANA_ADMIN_*` del `.env.example` |
 
-19. Conclusiones
+<!-- Después de hacer la prueba de clonado limpio, agregar aquí la captura y el resultado:
+![Prueba de clonado limpio](evidencias/prueba-limpia.png)
+-->
 
-Durante el desarrollo del parcial se logró estructurar una infraestructura basada en contenedores Docker para integrar diferentes servicios de comunicación y análisis de información.
+---
 
-La utilización de Docker Compose permitió organizar los servicios dentro de un único archivo de configuración, haciendo más sencillo el proceso de despliegue y reduciendo la necesidad de realizar configuraciones independientes en cada contenedor.
+## 10. Conclusiones
 
-Uno de los aspectos que más problemas generó fue la creación y ubicación de los archivos en Windows. Un ejemplo fue el Dockerfile de Jupyter, que inicialmente quedó guardado como Dockerfile.txt. Este problema se solucionó cambiando el nombre del archivo y verificando nuevamente su contenido desde PowerShell.
-
-También fue necesario corregir la ubicación inicial del repositorio, ya que había sido creado dentro de System32. Se trasladó a la carpeta del usuario para trabajar en una ubicación más apropiada y se comprobó posteriormente que Git continuara funcionando.
-
-La arquitectura implementada permite que Nginx funcione como punto de entrada, mientras que Joomla, Jupyter y Grafana trabajan como servicios independientes. PostgreSQL se encarga de almacenar la información y los registros generados por Nginx son procesados mediante Python.
-
-La integración de Jupyter y Grafana permite utilizar los mismos datos desde dos enfoques diferentes. Jupyter permite realizar un análisis más directo mediante Python, mientras que Grafana permite visualizar los resultados mediante dashboards.
-
-Finalmente, el proyecto fue organizado pensando en el requisito de que otra persona pueda clonar el repositorio en una máquina limpia y levantar la infraestructura utilizando Docker Compose. Por esta razón, se incluyeron los archivos de configuración, las variables de entorno de ejemplo, el Dockerfile, los scripts, los dashboards y la documentación necesaria para realizar el despliegue.
+- Docker Compose permitió describir los cinco servicios, las redes y los volúmenes en un solo archivo y levantar todo con un comando.
+- Nginx como proxy inverso dejó un único punto de acceso, con PostgreSQL aislado en una red interna y sin puertos publicados.
+- Los problemas que más tiempo tomaron no estuvieron en los servicios sino en los detalles: el enlace simbólico de `access.log`, la `/` final de `proxy_pass`, la autoinstalación de Joomla y las credenciales guardadas en los volúmenes. Resolverlos obligó a revisar logs, procesos y archivos dentro de los contenedores.
+- Jupyter y Grafana consultan los mismos datos desde dos enfoques: análisis con Python y dashboards en tiempo casi real.
+- Trabajar en Windows exigió cuidar detalles como las extensiones `.txt` ocultas, la ubicación de las carpetas y los archivos que no deben subirse a GitHub (`.env`, `.ipynb_checkpoints`).
+- El proyecto quedó listo para que otra persona lo clone y lo ejecute sin configurar nada a mano.
